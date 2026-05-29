@@ -2,17 +2,15 @@ name: Shop Alert Bot
 
 on:
   schedule:
-    # 30분마다 실행 (UTC 기준)
     - cron: "*/5 * * * *"
   workflow_dispatch:
-    # 수동으로 실행하는 버튼도 생겨요 (테스트할 때 유용!)
 
 jobs:
   check:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # seen.json 업데이트를 위해 필요
+      contents: write
 
     steps:
       - name: 저장소 코드 가져오기
@@ -29,6 +27,7 @@ jobs:
       - name: 상품 체크 실행
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         run: python checker.py
 
       - name: seen.json 변경사항 저장
