@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import schedule
 import requests
 from bs4 import BeautifulSoup
 
@@ -12,6 +13,8 @@ CRUNCHYROLL_KEYWORDS = [
     "gintama",
     "ichibansho",
 ]
+
+CHECK_INTERVAL_MINUTES = 5  # 몇 분마다 체크할지
 
 # =============================================
 #   아래는 수정하지 않아도 돼요!
@@ -99,12 +102,10 @@ def check_crunchyroll(keyword, seen_ids):
 
     new_items = []
     for item in items[:20]:
-        # 고유 ID: data-pid 사용
         pid = item.get("data-pid", "").strip()
         if not pid:
             continue
 
-        # 제목: aria-label에서 추출
         a_tag = item.find("a", attrs={"aria-label": True})
         if not a_tag:
             continue
@@ -112,18 +113,15 @@ def check_crunchyroll(keyword, seen_ids):
         if not title:
             continue
 
-        # URL
         href = a_tag.get("href", "")
         product_url = (
             href if href.startswith("http")
             else "https://store.crunchyroll.com" + href
         )
 
-        # 가격
         price_tag = item.select_one(".price .sales .value, [class*='price'] .value, .price")
         price = price_tag.get_text(strip=True) if price_tag else None
 
-        # 이미지
         img_tag = item.select_one("img")
         image_url = None
         if img_tag:
@@ -140,15 +138,13 @@ def check_crunchyroll(keyword, seen_ids):
                 "image": image_url,
                 "source": "Crunchyroll Store",
             })
-        else:
-            print(f"  — 이미 본 상품: {title}")
 
     return new_items
 
 
-def main():
-    print("=" * 50)
-    print("Shop Alert Bot 시작!")
+def job():
+    print("\n" + "=" * 50)
+    print(f"체크 시작! ({time.strftime('%Y-%m-%d %H:%M:%S')})")
     print("=" * 50)
 
     seen_ids = load_seen()
@@ -164,7 +160,6 @@ def main():
     print(f"\n새로 발견된 상품 총 {len(all_new_items)}개")
 
     for item in all_new_items:
-        print(f"  → 알림 전송: {item['title']}")
         send_discord(
             title=item["title"],
             url=item["url"],
@@ -176,8 +171,13 @@ def main():
         time.sleep(1)
 
     save_seen(seen_ids)
-    print("\n완료! seen.json 저장됨.")
+    print("완료! seen.json 저장됨.")
 
 
 if __name__ == "__main__":
-    main()
+    print(f"Shop Alert Bot 시작! {CHECK_INTERVAL_MINUTES}분마다 체크합니다.")
+    job()  # 시작하자마자 한 번 즉시 실행
+    schedule.every(CHECK_INTERVAL_MINUTES).minutes.do(job)
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
